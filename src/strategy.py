@@ -21,7 +21,7 @@ def get_security(context):
     for industry_code in INDUSTRY_CODES:
         today = context.current_dt.date()
         stocks = get_industry_stocks(industry_code, date=today)
-        log.debug('stocks',stocks)
+        #log.debug('stocks',stocks)
 
 
 
@@ -41,11 +41,11 @@ def get_security(context):
         change_pct_df.sort_values(by=['change_pct'], ascending=True, inplace=True)
 
         change_pct_df = change_pct_df.head(int(0.1 * len(change_pct_df))+1)
-        log.debug('change_pct_df',change_pct_df)
+        log.debug('change_pct_df',change_pct_df.head())
 
 
 
-
+        # TODO let it go或选取6只？
         # PB和市值
         pb_market_cap_df = get_fundamentals(query(
                 valuation
@@ -56,10 +56,10 @@ def get_security(context):
                 valuation.pb_ratio < 10,
             ).order_by(
                 valuation.market_cap.desc()
-            ), date=None)
+            ), date=today)
         # 市值在前90%
         pb_market_cap_df = pb_market_cap_df.head(int(0.9 * len(pb_market_cap_df)) + 1)
-        log.debug('pb_market_cap_df',pb_market_cap_df)
+        log.debug('pb_market_cap_df',pb_market_cap_df.head())
 
 
         # 取交集 加入最终股票池
@@ -72,11 +72,79 @@ def get_security(context):
 
 
 # 计算资金分配
-def get_allocation():
-    # TODO
-    # 返回一系列对应股票顺序的比例（浮点数，总和为1）
+# 返回一系列对应股票顺序的比例（浮点数，总和为1）
+def get_allocation(context):
     log.debug("executing get_allocation()")
-    return
+    # TODO
+    today = context.current_dt.date()
+    stocks = g.security
+
+    # TODO: 参数设置？此处采用一整年的收盘价数据
+    stock_prices_df = pd.DataFrame()
+    for stock in stocks:
+        price_df = get_price(stock, start_date=today + datetime.timedelta(days=-365), end_date=today, frequency='daily', fields=['close'])
+        stock_prices_df[stock] = price_df['close'].values
+    log.debug("stock_prices_df",stock_prices_df.head())
+
+    # 计算收盘价数据的涨跌幅（收益率）
+    stock_returns_df = stock_prices_df.pct_change().dropna()
+    log.debug("stock_returns_df",stock_returns_df.head())
+
+    # 相关系数
+    correlation_matrix = stock_returns_df.corr()
+    log.debug("correlation_matrix",correlation_matrix)
+
+    # 协方差
+    cov_mat = stock_returns_df.cov()
+    log.debug("cov_mat",cov_mat)
+    # 年化协方差矩阵
+    cov_mat_annual = cov_mat * 252
+
+
+    # 模拟次数
+    SIMULATE_TIME = 10000
+
+    # 设置空的numpy数组，用于存储每次模拟得到的权重、收益率和标准差
+    random_p = np.empty((SIMULATE_TIME, len(stocks) + 2))
+    np.random.seed(0)
+
+    # 循环模拟SIMULATE_TIME次随机的投资组合
+    for i in range(SIMULATE_TIME):
+        # 生成len(stocks)个随机数，并归一化，得到一组随机的权重数据
+        random_len = np.random.random(len(stocks))
+        random_weight = random_len / np.sum(random_len)
+
+        # 计算年化平均收益率
+        mean_return = stock_returns_df.mul(random_weight, axis=1).sum(axis=1).mean()
+        annual_return = (1 + mean_return)**252 - 1
+
+        # 计算年化的标准差，也称为波动率
+        random_volatility = np.sqrt(np.dot(random_weight.T,
+                                           np.dot(cov_mat_annual, random_weight)))
+
+        # 将上面生成的权重，和计算得到的收益率、标准差存入数组random_p中
+        random_p[i][:len(stocks)] = random_weight
+        random_p[i][-2] = annual_return
+        random_p[i][-1] = random_volatility
+
+    # 将numpy数组转化成DataFrame数据框
+    random_portfolios_df = pd.DataFrame(random_p)
+    # 设置数据框RandomPortfolios每一列的名称
+    random_portfolios_df.columns = [stock + "_weight" for stock in stocks] + ['Returns', 'Volatility']
+
+
+    # TODO:设置无风险回报率为0 需要修改成10年债吗
+    risk_free = 0
+    random_portfolios_df['Sharpe'] = (random_portfolios_df.Returns - risk_free) / random_portfolios_df.Volatility
+
+    # 找到夏普比率最大数据对应的索引值
+    max_index = random_portfolios_df.Sharpe.idxmax()
+
+    MSR_weights = np.array(random_portfolios_df.iloc[max_index, 0:len(stocks)])
+
+    log.debug("return allocation", MSR_weights)
+    log.debug("sum of allocation", MSR_weights.sum())
+    return MSR_weights
 
 # 计算买入卖出信号
 def get_signal():
@@ -125,7 +193,7 @@ def before_market_open(context):
         g.security_changed = True
         # 再平衡
         g.security = get_security(context)
-        g.allocation = get_allocation()
+        g.allocation = get_allocation(context)
     g.period_counter += 1
 
 
