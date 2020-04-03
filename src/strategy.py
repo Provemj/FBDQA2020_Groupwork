@@ -5,12 +5,14 @@ import datetime
 from jqdata import *
 from jqlib.technical_analysis import *
 
-# 构建股票池
+'''
+    构建股票池，策略参见文档
+    返回的是一个股票代码的list，如['000632.XSHG', ...]
+'''
 def get_security(context):
     log.debug("executing get_security()")
-    # TODO
-    # 返回一系列security的dataframe
 
+    # 返回一系列security的dataframe
 
     security = []
 
