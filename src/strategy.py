@@ -6,11 +6,68 @@ from jqdata import *
 from jqlib.technical_analysis import *
 
 # 构建股票池
-def get_security():
+def get_security(context):
+    log.debug("executing get_security()")
     # TODO
     # 返回一系列security的dataframe
-    log.debug("executing get_security()")
-    return
+
+
+    security = []
+
+    #INDUSTRY_CODES = ['J68']#, 'A01', 'HY524',]# 'HY491', 'GN736', 'GN815']
+    INDUSTRY_CODES = ['801013', '801081', '801192', '801194', '801072', '801152']
+    for industry_code in INDUSTRY_CODES:
+        today = context.current_dt.date()
+        stocks = get_industry_stocks(industry_code, date=today)
+        log.debug('stocks',stocks)
+
+
+
+        # 十日跌幅前10%
+        # TODO:这里的change_pct对吗
+        change_pcts = []
+        for stock in stocks:
+            try:
+                price_df = get_price(stock, start_date=today + datetime.timedelta(days=-10), end_date=today, frequency='daily', fields=['avg'], skip_paused=False, fq='pre', panel=False)
+                change_pct =  (price_df['avg'].iloc[-1] - price_df['avg'].iloc[0]) / price_df['avg'].iloc[0] - 1
+                change_pcts.append(change_pct)
+            except exceptions.ParamsError:
+                log.error("找不到标的",stock)
+                change_pcts.append(None)
+
+        change_pct_df = pd.DataFrame({"code": stocks, "change_pct": change_pcts})
+        change_pct_df.sort_values(by=['change_pct'], ascending=True, inplace=True)
+
+        change_pct_df = change_pct_df.head(int(0.1 * len(change_pct_df))+1)
+        log.debug('change_pct_df',change_pct_df)
+
+
+
+
+        # PB和市值
+        pb_market_cap_df = get_fundamentals(query(
+                valuation
+            ).filter(
+                # 在该板块内
+                valuation.code.in_(stocks),
+                # PB < 10
+                valuation.pb_ratio < 10,
+            ).order_by(
+                valuation.market_cap.desc()
+            ), date=None)
+        # 市值在前90%
+        pb_market_cap_df = pb_market_cap_df.head(int(0.9 * len(pb_market_cap_df)) + 1)
+        log.debug('pb_market_cap_df',pb_market_cap_df)
+
+
+        # 取交集 加入最终股票池
+        for stock in stocks:
+            if stock in pb_market_cap_df['code'].values and stock in change_pct_df['code'].values:
+                security.append(stock)
+
+    log.debug("return security\n", security)
+    return security
+
 
 # 计算资金分配
 def get_allocation():
@@ -65,7 +122,7 @@ def before_market_open(context):
         g.period_counter = 0
         g.security_changed = True
         # 再平衡
-        g.security = get_security()
+        g.security = get_security(context)
         g.allocation = get_allocation()
     g.period_counter += 1
 
