@@ -158,9 +158,8 @@ def get_signal(context):
     buy_signal = False
     sell_signal = False
 
-	# 策略
-    pool = ['801013.XSHG', '801081.XSHG', '801192.XSHG', '801194.XSHG', '801072.XSHG', '801152.XSHG']
-    stock = '801013.XSHG'
+	# 策略 沪深300 benchmark
+    stock = '000300.XSHG'
     HS_da = get_price(security = stock,
                       end_date = context.current_dt,
                       frequency = 'daily',
