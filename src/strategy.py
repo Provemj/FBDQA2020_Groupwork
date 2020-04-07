@@ -84,11 +84,11 @@ def get_allocation(context):
     # TODO
     today = context.current_dt.date()
     stocks = g.security
-
+    TREAD_DAY_COUNTS = 504
     # TODO: 参数设置？此处采用一整年的收盘价数据
     stock_prices_df = pd.DataFrame()
     for stock in stocks:
-        price_df = get_price(stock, start_date=today + datetime.timedelta(days=-365), end_date=today, frequency='daily', fields=['close'])
+        price_df = get_price(stock, start_date=today + datetime.timedelta(days=-730), end_date=today, frequency='daily', fields=['close'])
         stock_prices_df[stock] = price_df['close'].values
     log.debug("stock_prices_df",stock_prices_df.head())
 
@@ -104,7 +104,7 @@ def get_allocation(context):
     cov_mat = stock_returns_df.cov()
     log.debug("cov_mat",cov_mat)
     # 年化协方差矩阵
-    cov_mat_annual = cov_mat * 252
+    cov_mat_annual = cov_mat * TREAD_DAY_COUNTS
 
 
     # 模拟次数
@@ -122,7 +122,7 @@ def get_allocation(context):
 
         # 计算年化平均收益率
         mean_return = stock_returns_df.mul(random_weight, axis=1).sum(axis=1).mean()
-        annual_return = (1 + mean_return)**252 - 1
+        annual_return = (1 + mean_return)**TREAD_DAY_COUNTS - 1
 
         # 计算年化的标准差，也称为波动率
         random_volatility = np.sqrt(np.dot(random_weight.T,
