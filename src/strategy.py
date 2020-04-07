@@ -147,11 +147,33 @@ def get_allocation(context):
     return MSR_weights
 
 # 计算买入卖出信号
-def get_signal():
+def get_signal(context):
     log.debug("executing get_signal()")
     buy_signal = False
     sell_signal = False
-    # TODO
+
+	# 策略
+    pool = ['801013.XSHG', '801081.XSHG', '801192.XSHG', '801194.XSHG', '801072.XSHG', '801152.XSHG']
+    stock = '801013.XSHG'
+    HS_da = get_price(security = stock, 
+                      end_date = context.current_dt,
+                      frequency = 'daily', 
+                      fields = None, 
+                      skip_paused = False, 
+                      fq = 'pre',
+                      count = 50)['close']
+
+    EMA_da_2 = EMA('801013.XSHG', check_date= HS_da.index[-2], timeperiod=15)[stock]
+    EMA_da_1 = EMA('801013.XSHG', check_date= HS_da.index[-1], timeperiod=15)[stock]
+
+    if HS_da[-2] < EMA_da_2 and HS_da[-1] > EMA_da_1:
+        buy_signal=True
+    elif HS_da[-2] > EMA_da_2 and HS_da[-1] < EMA_da_1: 
+        if stock not in context.position.keys():
+            return
+        sell_signal=True
+
+    # 输出信号
     assert(buy_signal == False or sell_signal == False)
     return buy_signal, sell_signal
 
@@ -200,22 +222,30 @@ def before_market_open(context):
 ## 开盘时运行函数
 def market_open(context):
     log.info('函数运行时间(market_open):'+str(context.current_dt.time()))
-
+    security=g.security
+	# 取得当前的现金
+    cash = context.portfolio.available_cash
+	# 股票池更新
     if g.security_changed:
         g.security_changed = False
-        # sell all
-        for each_security in g.security:
-            order_target(each_security, 0)
+        # 空仓卖出
+        for each in security:
+            order_target(each, 0)
 
-    buy_signal, sell_signal = get_signal()
-
+    buy_signal, sell_signal = get_signal(context)
+    
     if buy_signal:
-        # TODO: buy
-        pass
+        # 按分配买入
+        i=0
+        for each in security:
+			# 按比例矢量买入
+            MSR_weights = get_allocation(context)
+            order_value(each,MSR_weights[i]*cash)
+            i=i+1
     elif sell_signal:
-        # sell all
-        for each_security in g.security:
-            order_target(each_security, 0)
+        # 空仓卖出
+        for each in security:
+            order_target(each, 0)
 
 
 ## 收盘后运行函数
