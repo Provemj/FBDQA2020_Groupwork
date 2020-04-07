@@ -15,23 +15,29 @@ def get_security(context):
     # 返回一系列security的dataframe
 
     security = []
-
+    pre_dates = get_trade_days(start_date=None, end_date=context.current_dt, count=10)
+    pre_date = pre_dates[0]
+    pre_curr_date = pre_dates[-1]
     #INDUSTRY_CODES = ['J68']#, 'A01', 'HY524',]# 'HY491', 'GN736', 'GN815']
     INDUSTRY_CODES = ['801013', '801081', '801192', '801194', '801072', '801152']
     for industry_code in INDUSTRY_CODES:
         today = context.current_dt.date()
         stocks = get_industry_stocks(industry_code, date=today)
+
+
         #log.debug('stocks',stocks)
-
-
-
         # 十日跌幅前10%
         # TODO:这里的change_pct对吗
         change_pcts = []
         for stock in stocks:
             try:
-                price_df = get_price(stock, start_date=today + datetime.timedelta(days=-10), end_date=today, frequency='daily', fields=['avg'], skip_paused=False, fq='pre', panel=False)
-                change_pct =  (price_df['avg'].iloc[-1] - price_df['avg'].iloc[0]) / price_df['avg'].iloc[0] - 1
+                pre_data = get_price(stock, start_date=None, end_date=pre_date, frequency='daily', fields=['close'], skip_paused=True, fq='post', count=1,panel=False)
+                pre_curr_data = get_price(stock, start_date=None, end_date=pre_curr_date, frequency='daily', fields=['close'], skip_paused=True, fq='post', count=1,panel=False)
+                log.debug('pre_data',pre_data)
+                log.debug('curr_data',pre_curr_data)
+                pre_close = pre_data['close'].iloc[0]
+                pre_curr_close = pre_curr_data['close'].iloc[0]
+                change_pct = ( pre_close - pre_curr_close ) / pre_curr_close
                 change_pcts.append(change_pct)
             except exceptions.ParamsError:
                 log.error("找不到标的",stock)
@@ -155,11 +161,11 @@ def get_signal(context):
 	# 策略
     pool = ['801013.XSHG', '801081.XSHG', '801192.XSHG', '801194.XSHG', '801072.XSHG', '801152.XSHG']
     stock = '801013.XSHG'
-    HS_da = get_price(security = stock, 
+    HS_da = get_price(security = stock,
                       end_date = context.current_dt,
-                      frequency = 'daily', 
-                      fields = None, 
-                      skip_paused = False, 
+                      frequency = 'daily',
+                      fields = None,
+                      skip_paused = False,
                       fq = 'pre',
                       count = 50)['close']
 
@@ -168,7 +174,7 @@ def get_signal(context):
 
     if HS_da[-2] < EMA_da_2 and HS_da[-1] > EMA_da_1:
         buy_signal=True
-    elif HS_da[-2] > EMA_da_2 and HS_da[-1] < EMA_da_1: 
+    elif HS_da[-2] > EMA_da_2 and HS_da[-1] < EMA_da_1:
         if stock not in context.position.keys():
             return
         sell_signal=True
@@ -233,7 +239,7 @@ def market_open(context):
             order_target(each, 0)
 
     buy_signal, sell_signal = get_signal(context)
-    
+
     if buy_signal:
         # 按分配买入
         i=0
