@@ -158,27 +158,30 @@ def get_signal(context):
     buy_signal = False
     sell_signal = False
 
-	# 策略 沪深300 benchmark
+	# 策略
+    pool = ['801013.XSHG', '801081.XSHG', '801192.XSHG', '801194.XSHG', '801072.XSHG', '801152.XSHG']
+    # 基准
     stock = '000300.XSHG'
-    HS_da = get_price(security = stock,
+    
+    HS_da = get_price(security = stock, 
                       end_date = context.current_dt,
-                      frequency = 'daily',
-                      fields = None,
-                      skip_paused = False,
+                      frequency = 'daily', 
+                      fields = None, 
+                      skip_paused = False, 
                       fq = 'pre',
                       count = 50)['close']
-
-    EMA_da_2 = EMA('801013.XSHG', check_date= HS_da.index[-2], timeperiod=15)[stock]
-    EMA_da_1 = EMA('801013.XSHG', check_date= HS_da.index[-1], timeperiod=15)[stock]
-
+    # 双EXPMA 参考宽客示例
+    EMA_da_2 = EMA(stock, check_date= HS_da.index[-2], timeperiod=15)[stock]
+    EMA_da_1 = EMA(stock, check_date= HS_da.index[-1], timeperiod=15)[stock]
+    
+    # 短线上穿长线作买
     if HS_da[-2] < EMA_da_2 and HS_da[-1] > EMA_da_1:
         buy_signal=True
-    elif HS_da[-2] > EMA_da_2 and HS_da[-1] < EMA_da_1:
-        if stock not in context.position.keys():
-            return
+    # 短线下穿长线作卖
+    elif HS_da[-2] > EMA_da_2 and HS_da[-1] < EMA_da_1: 
         sell_signal=True
 
-    # 输出信号
+    # 输出
     assert(buy_signal == False or sell_signal == False)
     return buy_signal, sell_signal
 
@@ -238,7 +241,7 @@ def market_open(context):
             order_target(each, 0)
 
     buy_signal, sell_signal = get_signal(context)
-
+    
     if buy_signal:
         # 按分配买入
         i=0
