@@ -171,8 +171,8 @@ def get_signal(context):
                       fq = 'pre',
                       count = 50)['close']
     # 双EXPMA 参考宽客示例
-    EMA_da_2 = EMA(stock, check_date= HS_da.index[-2], timeperiod=15)[stock]
-    EMA_da_1 = EMA(stock, check_date= HS_da.index[-1], timeperiod=15)[stock]
+    EMA_da_2 = EMA(stock, check_date= HS_da.index[-2], timeperiod=30)[stock]
+    EMA_da_1 = EMA(stock, check_date= HS_da.index[-1], timeperiod=5)[stock]
     
     # 短线上穿长线作买
     if HS_da[-2] < EMA_da_2 and HS_da[-1] > EMA_da_1:
